@@ -64,6 +64,7 @@ bool doMetadata = true;
 void sendRequest(messagebus::MessageBus* msgbus, int argc, char** argv);
 void receive(messagebus::MessageBus* msgbus, int argc, char** argv);
 void subscribe(messagebus::MessageBus* msgbus, int argc, char** argv);
+void publish(messagebus::MessageBus* msgbus, int argc, char** argv);
 
 // Command line actions.
 
@@ -77,6 +78,7 @@ const std::map<std::string, progAction> actions = {
     { "sendRequest", { "[userData]", "send a request with payload", sendRequest } },
     { "receive", { "", "listen on a queue and dump out received messages", receive } },
     { "subscribe", { "", "listen on a topic and dump out received messages", subscribe } },
+    { "publish", { "[userData]", "Publish data on a topic", publish } }
 } ;
 
 const std::map<std::string, std::function<messagebus::MessageBus*()>> busTypes = {
@@ -207,6 +209,27 @@ void subscribe(messagebus::MessageBus* msgbus, int argc, char** argv) {
     g_cv.wait(lock, [] { return g_exit; });
 }
 
+void publish(messagebus::MessageBus* msgbus, int argc, char** argv) {
+    messagebus::Message msg;
+
+    // Build message metadata.
+    if (doMetadata) {
+        msg.metaData() =
+        {
+            { messagebus::Message::FROM, clientName },
+            { messagebus::Message::SUBJECT, subject }
+        };
+    }
+
+    // Build message payload.
+    while (*argv) {
+        msg.userData().emplace_back(*argv++);
+    }
+
+    dumpMessage(msg);
+    msgbus->publish(topic, msg);
+}
+
 void sendRequest(messagebus::MessageBus* msgbus, int argc, char** argv) {
     messagebus::Message msg;
 
@@ -330,6 +353,5 @@ int main(int argc, char** argv) {
     auto msgBus = std::unique_ptr<messagebus::MessageBus>(busIt->second());
     msgBus->connect();
     actionIt->second.fn(msgBus.get(), argc-optind-1, argv+optind+1);
-
     return 0;
 }
